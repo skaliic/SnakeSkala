@@ -16,7 +16,7 @@ namespace Snake_soutez
         private Texture2D snakeTexture;
         private List<Vector2> snakeParts;
         private Vector2 direction;
-        private Vector2 nextDirection; // Pro plynulejší ovládání
+        private Vector2 nextDirection;
         private float moveTimer;
         private float baseMoveDelay = 0.1f;
         public float moveDelay = 0.1f;
@@ -36,25 +36,32 @@ namespace Snake_soutez
         // === Power-upy ===
         private List<ICollectible> collectibles = new List<ICollectible>();
         private float powerUpSpawnTimer = 0;
-        private float powerUpSpawnInterval = 10f; // Co 10 sekund nový power-up
+        private float powerUpSpawnInterval = 10f;
         private Dictionary<PowerUpType, float> activePowerUps = new Dictionary<PowerUpType, float>();
 
         // === Portály ===
         private Portal portal1;
         private Portal portal2;
         private float portalCooldown = 0;
-        private float lastTeleportTime = 0;
 
         // === Zmrzlá podlaha ===
         private float floorTimer = 0;
-        private float floorCycleTime = 60f; // Každých 60 sekund
-        private float freezeDuration = 20f; // Na 20 sekund
+        private float floorCycleTime = 60f;
+        private float freezeDuration = 20f;
         private bool isFloorFrozen = false;
         private Vector2 momentum = Vector2.Zero;
         private Texture2D iceTexture;
 
         // === Neprůstřelnost ===
         public bool isInvincible = false;
+
+        // === NOVÉ: Vizuální efekty ===
+        private Texture2D pixelTexture;
+        private List<Particle> particles = new List<Particle>();
+        private float animationTimer = 0;
+        private Texture2D gradientTexture;
+        private List<Vector2> obstacles = new List<Vector2>(); // Překážky ve hře
+        private Texture2D obstacleTexture;
 
         public Game1()
         {
@@ -76,15 +83,16 @@ namespace Snake_soutez
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
+            // Základní pixel textura
+            pixelTexture = new Texture2D(GraphicsDevice, 1, 1);
+            pixelTexture.SetData(new[] { Color.White });
+
             // Textury
-            snakeTexture = new Texture2D(GraphicsDevice, 1, 1);
-            snakeTexture.SetData(new[] { Color.Green });
-
-            foodTexture = new Texture2D(GraphicsDevice, 1, 1);
-            foodTexture.SetData(new[] { Color.Red });
-
-            iceTexture = new Texture2D(GraphicsDevice, 1, 1);
-            iceTexture.SetData(new[] { Color.Cyan });
+            snakeTexture = CreateRoundedTexture(gridSize);
+            foodTexture = CreateGlowTexture(gridSize);
+            iceTexture = CreateIceTexture(gridSize);
+            obstacleTexture = CreateObstacleTexture(gridSize);
+            gradientTexture = CreateGradientTexture();
 
             // Font
             try
@@ -100,6 +108,160 @@ namespace Snake_soutez
 
             SpawnFood();
             SpawnPortals();
+            CreateObstacles();
+        }
+
+        // === NOVÉ: Vytvoření zakulacené textury pro hada ===
+        private Texture2D CreateRoundedTexture(int size)
+        {
+            Texture2D texture = new Texture2D(GraphicsDevice, size, size);
+            Color[] data = new Color[size * size];
+
+            Vector2 center = new Vector2(size / 2f, size / 2f);
+            float radius = size / 2f - 1;
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    Vector2 pos = new Vector2(x, y);
+                    float dist = Vector2.Distance(pos, center);
+
+                    if (dist <= radius)
+                    {
+                        float alpha = 1f - (dist / radius) * 0.3f;
+                        data[y * size + x] = Color.LimeGreen * alpha;
+                    }
+                    else
+                    {
+                        data[y * size + x] = Color.Transparent;
+                    }
+                }
+            }
+
+            texture.SetData(data);
+            return texture;
+        }
+
+        // === NOVÉ: Vytvoření svítící textury pro jídlo ===
+        private Texture2D CreateGlowTexture(int size)
+        {
+            Texture2D texture = new Texture2D(GraphicsDevice, size * 2, size * 2);
+            Color[] data = new Color[size * 2 * size * 2];
+
+            Vector2 center = new Vector2(size, size);
+
+            for (int y = 0; y < size * 2; y++)
+            {
+                for (int x = 0; x < size * 2; x++)
+                {
+                    Vector2 pos = new Vector2(x, y);
+                    float dist = Vector2.Distance(pos, center);
+                    float alpha = Math.Max(0, 1f - (dist / size));
+                    data[y * size * 2 + x] = Color.Red * alpha * 0.8f;
+                }
+            }
+
+            texture.SetData(data);
+            return texture;
+        }
+
+        // === NOVÉ: Ledová textura ===
+        private Texture2D CreateIceTexture(int size)
+        {
+            Texture2D texture = new Texture2D(GraphicsDevice, size, size);
+            Color[] data = new Color[size * size];
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float noise = (float)(Math.Sin(x * 0.5f) * Math.Cos(y * 0.5f));
+                    Color ice = Color.Lerp(new Color(180, 220, 255), new Color(220, 240, 255), (noise + 1) / 2f);
+                    data[y * size + x] = ice * 0.3f;
+                }
+            }
+
+            texture.SetData(data);
+            return texture;
+        }
+
+        // === NOVÉ: Textura pro překážky ===
+        private Texture2D CreateObstacleTexture(int size)
+        {
+            Texture2D texture = new Texture2D(GraphicsDevice, size, size);
+            Color[] data = new Color[size * size];
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    if (x < 2 || x >= size - 2 || y < 2 || y >= size - 2)
+                        data[y * size + x] = new Color(80, 80, 90);
+                    else
+                        data[y * size + x] = new Color(50, 50, 60);
+                }
+            }
+
+            texture.SetData(data);
+            return texture;
+        }
+
+        // === NOVÉ: Gradient pro pozadí ===
+        private Texture2D CreateGradientTexture()
+        {
+            int width = _graphics.PreferredBackBufferWidth;
+            int height = _graphics.PreferredBackBufferHeight;
+            Texture2D texture = new Texture2D(GraphicsDevice, width, height);
+            Color[] data = new Color[width * height];
+
+            for (int y = 0; y < height; y++)
+            {
+                float t = (float)y / height;
+                Color topColor = new Color(10, 15, 35);
+                Color bottomColor = new Color(25, 15, 45);
+                Color gradient = Color.Lerp(topColor, bottomColor, t);
+
+                for (int x = 0; x < width; x++)
+                {
+                    data[y * width + x] = gradient;
+                }
+            }
+
+            texture.SetData(data);
+            return texture;
+        }
+
+        // === NOVÉ: Vytvoření překážek (neobvyklý tvar hrací plochy) ===
+        private void CreateObstacles()
+        {
+            obstacles.Clear();
+
+            // Vytvoření "L" tvaru překážek
+            for (int x = 15; x < 25; x++)
+            {
+                obstacles.Add(new Vector2(x * gridSize, 10 * gridSize));
+            }
+            for (int y = 10; y < 20; y++)
+            {
+                obstacles.Add(new Vector2(15 * gridSize, y * gridSize));
+            }
+
+            // Křížek uprostřed
+            for (int i = -3; i <= 3; i++)
+            {
+                obstacles.Add(new Vector2((20 + i) * gridSize, 15 * gridSize));
+                obstacles.Add(new Vector2(20 * gridSize, (15 + i) * gridSize));
+            }
+
+            // Rohové bloky
+            for (int x = 35; x < 38; x++)
+            {
+                for (int y = 5; y < 8; y++)
+                {
+                    obstacles.Add(new Vector2(x * gridSize, y * gridSize));
+                }
+            }
         }
 
         private void SpawnFood()
@@ -111,9 +273,15 @@ namespace Snake_soutez
             do
             {
                 newPos = new Vector2(random.Next(maxX) * gridSize, random.Next(maxY) * gridSize);
-            } while (snakeParts.Contains(newPos) || IsPositionOccupied(newPos));
+            } while (snakeParts.Contains(newPos) || IsPositionOccupied(newPos) || obstacles.Contains(newPos));
 
             foodPosition = newPos;
+
+            // Přidat částice kolem jídla
+            for (int i = 0; i < 5; i++)
+            {
+                particles.Add(new Particle(foodPosition, Color.OrangeRed, random));
+            }
         }
 
         private bool IsPositionOccupied(Vector2 pos)
@@ -135,8 +303,7 @@ namespace Snake_soutez
             portal1.Spawn(gridSize, _graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
             portal2.Spawn(gridSize, _graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
 
-            // Zajistit, že portály nejsou na stejné pozici
-            while (portal1.Position == portal2.Position)
+            while (portal1.Position == portal2.Position || obstacles.Contains(portal1.Position) || obstacles.Contains(portal2.Position))
             {
                 portal2.Spawn(gridSize, _graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
             }
@@ -151,7 +318,13 @@ namespace Snake_soutez
             PowerUpType randomType = types[random.Next(types.Length)];
 
             PowerUp powerUp = new PowerUp(randomType, GraphicsDevice);
-            powerUp.Spawn(gridSize, _graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
+
+            Vector2 spawnPos;
+            do
+            {
+                powerUp.Spawn(gridSize, _graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
+                spawnPos = powerUp.Position;
+            } while (obstacles.Contains(spawnPos));
 
             collectibles.Add(powerUp);
         }
@@ -159,6 +332,12 @@ namespace Snake_soutez
         public void ActivatePowerUp(PowerUp powerUp)
         {
             activePowerUps[powerUp.Type] = powerUp.Duration;
+
+            // Efekt částic
+            for (int i = 0; i < 15; i++)
+            {
+                particles.Add(new Particle(powerUp.Position, Color.Yellow, random));
+            }
 
             switch (powerUp.Type)
             {
@@ -181,14 +360,22 @@ namespace Snake_soutez
         {
             if (portalCooldown <= 0)
             {
+                // Efekt částic při teleportaci
+                for (int i = 0; i < 20; i++)
+                {
+                    particles.Add(new Particle(snakeParts[0], Color.Cyan, random));
+                    particles.Add(new Particle(targetPosition, Color.Orange, random));
+                }
+
                 snakeParts[0] = targetPosition;
-                portalCooldown = 0.5f; // Cooldown aby se neteleportoval neustále
+                portalCooldown = 0.5f;
             }
         }
 
         protected override void Update(GameTime gameTime)
         {
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            animationTimer += deltaTime;
 
             if (Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
@@ -206,6 +393,15 @@ namespace Snake_soutez
             {
                 isFloorFrozen = true;
                 floorTimer = 0;
+
+                // Efekt mrazu
+                for (int i = 0; i < 30; i++)
+                {
+                    particles.Add(new Particle(
+                        new Vector2(random.Next(_graphics.PreferredBackBufferWidth),
+                                  random.Next(_graphics.PreferredBackBufferHeight)),
+                        Color.LightBlue, random));
+                }
             }
             else if (isFloorFrozen && floorTimer >= freezeDuration)
             {
@@ -255,6 +451,14 @@ namespace Snake_soutez
             if (portalCooldown > 0)
                 portalCooldown -= deltaTime;
 
+            // Update částic
+            for (int i = particles.Count - 1; i >= 0; i--)
+            {
+                particles[i].Update(deltaTime);
+                if (particles[i].Life <= 0)
+                    particles.RemoveAt(i);
+            }
+
             HandleInput();
             moveTimer += deltaTime;
 
@@ -274,7 +478,6 @@ namespace Snake_soutez
 
             if (isFloorFrozen)
             {
-                // Na ledě - klouzání s hybností
                 if (kstate.IsKeyDown(Keys.Up) && direction.Y == 0)
                     nextDirection = new Vector2(0, -1);
                 if (kstate.IsKeyDown(Keys.Down) && direction.Y == 0)
@@ -284,12 +487,10 @@ namespace Snake_soutez
                 if (kstate.IsKeyDown(Keys.Right) && direction.X == 0)
                     nextDirection = new Vector2(1, 0);
 
-                // Hybnost - had se snaží udržet směr
                 momentum = Vector2.Lerp(momentum, nextDirection, 0.3f);
             }
             else
             {
-                // Normální ovládání
                 if (kstate.IsKeyDown(Keys.Up) && direction.Y == 0)
                     nextDirection = new Vector2(0, -1);
                 if (kstate.IsKeyDown(Keys.Down) && direction.Y == 0)
@@ -320,6 +521,13 @@ namespace Snake_soutez
                 return;
             }
 
+            // Kontrola překážek
+            if (obstacles.Contains(newHead) && !isInvincible)
+            {
+                gameOver = true;
+                return;
+            }
+
             // Kontrola hranic a kolize se sebou
             bool hitWall = newHead.X < 0 || newHead.Y < 0 ||
                           newHead.X >= _graphics.PreferredBackBufferWidth ||
@@ -334,10 +542,8 @@ namespace Snake_soutez
             }
             else if ((hitWall || hitSelf) && isInvincible)
             {
-                // S neprůstřelností projde zdí nebo sebou
                 if (hitWall)
                 {
-                    // Wrap around na druhou stranu
                     if (newHead.X < 0) newHead.X = _graphics.PreferredBackBufferWidth - gridSize;
                     if (newHead.X >= _graphics.PreferredBackBufferWidth) newHead.X = 0;
                     if (newHead.Y < 0) newHead.Y = _graphics.PreferredBackBufferHeight - gridSize;
@@ -350,6 +556,13 @@ namespace Snake_soutez
             {
                 snakeParts.Insert(0, newHead);
                 score += 10 * scoreMultiplier;
+
+                // Trail částice
+                for (int i = 0; i < 10; i++)
+                {
+                    particles.Add(new Particle(newHead, Color.Gold, random));
+                }
+
                 SpawnFood();
             }
             else
@@ -387,83 +600,139 @@ namespace Snake_soutez
             activePowerUps.Clear();
             collectibles.Clear();
             powerUpSpawnTimer = 0;
+            particles.Clear();
             SpawnFood();
             SpawnPortals();
+            CreateObstacles();
         }
 
         protected override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(isFloorFrozen ? new Color(200, 230, 255) : Color.Black);
+            GraphicsDevice.Clear(Color.Black);
 
             _spriteBatch.Begin();
+
+            // Gradient pozadí
+            _spriteBatch.Draw(gradientTexture, new Rectangle(0, 0,
+                _graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight),
+                Color.White);
+
+            // Animované hvězdy na pozadí
+            for (int i = 0; i < 50; i++)
+            {
+                float x = (i * 137.5f) % _graphics.PreferredBackBufferWidth;
+                float y = (i * 217.3f) % _graphics.PreferredBackBufferHeight;
+                float twinkle = (float)Math.Sin(animationTimer * 2 + i) * 0.5f + 0.5f;
+                _spriteBatch.Draw(pixelTexture, new Rectangle((int)x, (int)y, 2, 2),
+                    Color.White * twinkle * 0.6f);
+            }
 
             // Efekt zmrzlé podlahy
             if (isFloorFrozen)
             {
-                for (int x = 0; x < _graphics.PreferredBackBufferWidth; x += gridSize * 2)
+                for (int x = 0; x < _graphics.PreferredBackBufferWidth; x += gridSize)
                 {
-                    for (int y = 0; y < _graphics.PreferredBackBufferHeight; y += gridSize * 2)
+                    for (int y = 0; y < _graphics.PreferredBackBufferHeight; y += gridSize)
                     {
+                        float wave = (float)Math.Sin(animationTimer * 3 + x * 0.1f + y * 0.1f);
                         _spriteBatch.Draw(iceTexture,
                             new Rectangle(x, y, gridSize, gridSize),
-                            Color.White * 0.1f);
+                            Color.White * (0.2f + wave * 0.1f));
                     }
                 }
             }
 
-            // Vykresli portály
+            // Překážky
+            foreach (var obstacle in obstacles)
+            {
+                float pulse = (float)Math.Sin(animationTimer * 2) * 0.1f + 0.9f;
+                _spriteBatch.Draw(obstacleTexture,
+                    new Rectangle((int)obstacle.X, (int)obstacle.Y, gridSize, gridSize),
+                    Color.White * pulse);
+            }
+
+            // Portály
             portal1?.Draw(_spriteBatch, gridSize);
             portal2?.Draw(_spriteBatch, gridSize);
 
-            // Vykresli power-upy
+            // Power-upy
             foreach (var collectible in collectibles)
             {
                 collectible.Draw(_spriteBatch, gridSize);
             }
 
-            // Vykresli hada
-            Color snakeColor = isInvincible ? Color.Purple : Color.Green;
-            foreach (var part in snakeParts)
+            // Částice
+            foreach (var particle in particles)
             {
-                _spriteBatch.Draw(snakeTexture,
-                    new Rectangle((int)part.X, (int)part.Y, gridSize, gridSize),
-                    snakeColor);
+                particle.Draw(_spriteBatch, pixelTexture);
             }
 
-            // Vykresli jídlo
+            // Jídlo s pulzací
+            float foodPulse = (float)Math.Sin(animationTimer * 4) * 0.15f + 0.85f;
             _spriteBatch.Draw(foodTexture,
-                new Rectangle((int)foodPosition.X, (int)foodPosition.Y, gridSize, gridSize),
-                Color.Red);
+                new Rectangle((int)foodPosition.X - gridSize / 2, (int)foodPosition.Y - gridSize / 2,
+                              (int)(gridSize * 2 * foodPulse), (int)(gridSize * 2 * foodPulse)),
+                Color.White);
 
-            // UI text
+            // Had s trail efektem
+            for (int i = snakeParts.Count - 1; i >= 0; i--)
+            {
+                float alpha = 1f - (i / (float)snakeParts.Count) * 0.5f;
+                Color snakeColor = isInvincible ? Color.Purple : Color.LimeGreen;
+
+                // Blikání při neprůstřelnosti
+                if (isInvincible)
+                {
+                    alpha *= (float)Math.Sin(animationTimer * 10) * 0.3f + 0.7f;
+                }
+
+                _spriteBatch.Draw(snakeTexture,
+                    new Rectangle((int)snakeParts[i].X, (int)snakeParts[i].Y, gridSize, gridSize),
+                    snakeColor * alpha);
+            }
+
+            // UI s poloprůhledným pozadím
             if (font != null)
             {
+                // Pozadí pro skóre
+                _spriteBatch.Draw(pixelTexture, new Rectangle(5, 5, 200, 30), Color.Black * 0.6f);
                 _spriteBatch.DrawString(font, $"Skóre: {score}", new Vector2(10, 10), Color.White);
 
                 if (isFloorFrozen)
                 {
                     float timeLeft = freezeDuration - floorTimer;
-                    _spriteBatch.DrawString(font, $"LED! {(int)timeLeft}s",
-                        new Vector2(10, 30), Color.Cyan);
+                    _spriteBatch.Draw(pixelTexture, new Rectangle(5, 40, 150, 25), Color.Black * 0.6f);
+                    _spriteBatch.DrawString(font, $"❄ LED! {(int)timeLeft}s",
+                        new Vector2(10, 43), Color.Cyan);
                 }
 
                 // Aktivní power-upy
-                int yOffset = 50;
+                int yOffset = isFloorFrozen ? 70 : 40;
                 foreach (var kvp in activePowerUps)
                 {
                     string powerUpName = kvp.Key.ToString();
-                    _spriteBatch.DrawString(font, $"{powerUpName}: {(int)kvp.Value}s",
+                    _spriteBatch.Draw(pixelTexture, new Rectangle(5, yOffset - 3, 250, 25), Color.Black * 0.6f);
+                    _spriteBatch.DrawString(font, $"⚡ {powerUpName}: {(int)kvp.Value}s",
                         new Vector2(10, yOffset), Color.Yellow);
-                    yOffset += 20;
+                    yOffset += 25;
                 }
 
                 // Game over
                 if (gameOver)
                 {
-                    string text = $"Game Over! Skóre: {score}\nStiskni ENTER pro restart.";
+                    int boxWidth = 400;
+                    int boxHeight = 100;
+                    int boxX = (_graphics.PreferredBackBufferWidth - boxWidth) / 2;
+                    int boxY = 220;
+
+                    _spriteBatch.Draw(pixelTexture,
+                        new Rectangle(boxX, boxY, boxWidth, boxHeight),
+                        Color.Black * 0.8f);
+
+                    string text = $"GAME OVER!\nSkóre: {score}\n\nStiskni ENTER";
                     Vector2 size = font.MeasureString(text);
                     _spriteBatch.DrawString(font, text,
-                        new Vector2((_graphics.PreferredBackBufferWidth - size.X) / 2, 250),
+                        new Vector2((_graphics.PreferredBackBufferWidth - size.X) / 2, 240),
                         Color.White);
                 }
             }
@@ -471,6 +740,46 @@ namespace Snake_soutez
             _spriteBatch.End();
 
             base.Draw(gameTime);
+        }
+    }
+
+    // === NOVÁ TŘÍDA: Částice pro vizuální efekty ===
+    public class Particle
+    {
+        public Vector2 Position;
+        public Vector2 Velocity;
+        public Color Color;
+        public float Life;
+        public float MaxLife;
+
+        public Particle(Vector2 position, Color color, Random random)
+        {
+            Position = position;
+            Color = color;
+            Life = 1f;
+            MaxLife = 1f;
+
+            float angle = (float)(random.NextDouble() * Math.PI * 2);
+            float speed = 30 + (float)random.NextDouble() * 50;
+            Velocity = new Vector2((float)Math.Cos(angle), (float)Math.Sin(angle)) * speed;
+        }
+
+        public void Update(float deltaTime)
+        {
+            Position += Velocity * deltaTime;
+            Velocity *= 0.95f; // Zpomalení
+            Life -= deltaTime * 2;
+        }
+
+        public void Draw(SpriteBatch spriteBatch, Texture2D texture)
+        {
+            if (Life > 0)
+            {
+                float alpha = Life / MaxLife;
+                spriteBatch.Draw(texture,
+                    new Rectangle((int)Position.X, (int)Position.Y, 3, 3),
+                    Color * alpha);
+            }
         }
     }
 }
