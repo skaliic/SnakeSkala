@@ -4,80 +4,114 @@ using System;
 
 namespace Snake_soutez
 {
-    public enum PowerUpType
+    public class Portal
     {
-        SpeedBoost,    // Zrychlí hada
-        SlowDown,      // Zpomalí hada
-        ScoreDouble,   // Dvojnásobné body
-        Invincibility  // Neprůstřelnost
-    }
+        private static Random random = new Random();
 
-    // Třída pro power-upy - implementuje rozhraní ICollectible
-    public class PowerUp : ICollectible
-    {
         public Vector2 Position { get; set; }
-        public bool IsActive { get; set; }
-        public float Duration { get; private set; }
-        public PowerUpType Type { get; private set; }
+        public Portal LinkedPortal { get; set; }
 
-        private Texture2D texture;
+        private Texture2D coreTexture;     // střed portálu
+        private Texture2D glowTexture;     // glow kolem portálu
+        private GraphicsDevice graphicsDevice;
         private Color color;
-        private Random random = new Random();
 
-        public PowerUp(PowerUpType type, GraphicsDevice graphicsDevice)
+        public Portal(GraphicsDevice graphicsDevice, Color color)
         {
-            Type = type;
-            IsActive = true;
+            this.graphicsDevice = graphicsDevice;
+            this.color = color;
 
-            // Vytvoření textury
-            texture = new Texture2D(graphicsDevice, 1, 1);
-            texture.SetData(new[] { Color.White });
-
-            // Nastavení vlastností podle typu
-            switch (type)
-            {
-                case PowerUpType.SpeedBoost:
-                    color = Color.Yellow;
-                    Duration = 5f;
-                    break;
-                case PowerUpType.SlowDown:
-                    color = Color.Blue;
-                    Duration = 5f;
-                    break;
-                case PowerUpType.ScoreDouble:
-                    color = Color.Gold;
-                    Duration = 10f;
-                    break;
-                case PowerUpType.Invincibility:
-                    color = Color.Purple;
-                    Duration = 7f;
-                    break;
-            }
+            coreTexture = CreateCore(24);
+            glowTexture = CreateGlow(60);
         }
 
         public void Spawn(int gridSize, int screenWidth, int screenHeight)
         {
             int maxX = screenWidth / gridSize;
             int maxY = screenHeight / gridSize;
-            Position = new Vector2(random.Next(maxX) * gridSize, random.Next(maxY) * gridSize);
-            IsActive = true;
+
+            Position = new Vector2(
+                random.Next(maxX) * gridSize,
+                random.Next(maxY) * gridSize
+            );
         }
 
         public void Apply(Game1 game)
         {
-            game.ActivatePowerUp(this);
+            if (LinkedPortal == null) return;
+
+            game.TeleportSnake(LinkedPortal.Position);
         }
 
         public void Draw(SpriteBatch spriteBatch, int gridSize)
         {
-            if (IsActive)
+            // Glow (větší než samotný portál)
+            spriteBatch.Draw(glowTexture,
+                new Rectangle(
+                    (int)Position.X - gridSize,
+                    (int)Position.Y - gridSize,
+                    gridSize * 3,
+                    gridSize * 3),
+                color * 0.45f);
+
+            // Střed portálu
+            spriteBatch.Draw(coreTexture,
+                new Rectangle(
+                    (int)Position.X,
+                    (int)Position.Y,
+                    gridSize,
+                    gridSize),
+                Color.White);
+        }
+
+        // === Vytvoření neonového jádra ===
+        private Texture2D CreateCore(int size)
+        {
+            Texture2D tex = new Texture2D(graphicsDevice, size, size);
+            Color[] data = new Color[size * size];
+
+            Vector2 center = new Vector2(size / 2f, size / 2f);
+            float radius = size / 2f;
+
+            for (int y = 0; y < size; y++)
             {
-                // Pulsující efekt
-                float pulse = (float)Math.Sin(DateTime.Now.Millisecond * 0.01f) * 0.3f + 0.7f;
-                spriteBatch.Draw(texture,
-                    new Rectangle((int)Position.X, (int)Position.Y, gridSize, gridSize),
-                    color * pulse);
+                for (int x = 0; x < size; x++)
+                {
+                    float dist = Vector2.Distance(new Vector2(x, y), center);
+                    float alpha = Math.Max(0, 1f - dist / radius);
+                    alpha = (float)Math.Pow(alpha, 1.4f);
+
+                    data[y * size + x] = Color.White * alpha;
+                }
             }
+
+            tex.SetData(data);
+            return tex;
+        }
+
+        // === Glow kolem portálu ===
+        private Texture2D CreateGlow(int size)
+        {
+            Texture2D tex = new Texture2D(graphicsDevice, size, size);
+            Color[] data = new Color[size * size];
+
+            Vector2 center = new Vector2(size / 2f, size / 2f);
+            float radius = size / 2f;
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dist = Vector2.Distance(new Vector2(x, y), center);
+                    float alpha = Math.Max(0, 1f - dist / radius);
+                    alpha = (float)Math.Pow(alpha, 2.2f);
+
+                    data[y * size + x] = color * alpha;
+                }
+            }
+
+            tex.SetData(data);
+            return tex;
         }
     }
 }

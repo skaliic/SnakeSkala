@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Snake_soutez;
 
 namespace Snake_soutez
 {
@@ -15,3 +16,5 @@ namespace Snake_soutez
         void Draw(SpriteBatch spriteBatch, int gridSize);
     }
 }
+
+ICollectible.cs
