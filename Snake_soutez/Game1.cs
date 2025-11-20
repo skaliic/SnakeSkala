@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 
 namespace Snake_soutez
@@ -63,6 +64,13 @@ namespace Snake_soutez
         private List<Vector2> obstacles = new List<Vector2>(); // Překážky ve hře
         private Texture2D obstacleTexture;
 
+        // Další efekty
+        private Texture2D gridTexture;
+        private Texture2D scanlineTexture;
+        private List<Vector2> snakeTrail = new List<Vector2>();
+        private Texture2D glowTexture;
+
+
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
@@ -88,11 +96,13 @@ namespace Snake_soutez
             pixelTexture.SetData(new[] { Color.White });
 
             // Textury
-            snakeTexture = CreateRoundedTexture(gridSize);
-            foodTexture = CreateGlowTexture(gridSize);
-            iceTexture = CreateIceTexture(gridSize);
-            obstacleTexture = CreateObstacleTexture(gridSize);
-            gradientTexture = CreateGradientTexture();
+            snakeTexture = CreateNeonSnakeTexture(gridSize);
+            foodTexture = CreateNeonGlowTexture(gridSize, new Color(255, 0, 100)); // Magenta
+            obstacleTexture = CreateCyberpunkObstacleTexture(gridSize);
+            gradientTexture = CreateCyberpunkGradient();
+            gridTexture = CreateCyberpunkGrid();
+            scanlineTexture = CreateScanlines();
+            glowTexture = CreateGlowCircle(gridSize * 2);
 
             // Font
             try
@@ -112,13 +122,13 @@ namespace Snake_soutez
         }
 
         // === NOVÉ: Vytvoření zakulacené textury pro hada ===
-        private Texture2D CreateRoundedTexture(int size)
+        private Texture2D CreateNeonSnakeTexture(int size)
         {
             Texture2D texture = new Texture2D(GraphicsDevice, size, size);
             Color[] data = new Color[size * size];
 
             Vector2 center = new Vector2(size / 2f, size / 2f);
-            float radius = size / 2f - 1;
+            float radius = size / 2f - 2;
 
             for (int y = 0; y < size; y++)
             {
@@ -129,8 +139,11 @@ namespace Snake_soutez
 
                     if (dist <= radius)
                     {
-                        float alpha = 1f - (dist / radius) * 0.3f;
-                        data[y * size + x] = Color.LimeGreen * alpha;
+                        data[y * size + x] = new Color(0, 255, 255);
+                    }
+                    else if (dist <= radius + 2)
+                    {
+                        data[y * size + x] = new Color(0, 255, 255)
                     }
                     else
                     {
@@ -144,21 +157,21 @@ namespace Snake_soutez
         }
 
         // === NOVÉ: Vytvoření svítící textury pro jídlo ===
-        private Texture2D CreateGlowTexture(int size)
+        private Texture2D CreateNeonGlowTexture(int size, Color neonColor)
         {
-            Texture2D texture = new Texture2D(GraphicsDevice, size * 2, size * 2);
-            Color[] data = new Color[size * 2 * size * 2];
+            Texture2D texture = new Texture2D(GraphicsDevice, size * 3, size * 3);
+            Color[] data = new Color[size * 3 * size * 3];
 
-            Vector2 center = new Vector2(size, size);
+            Vector2 center = new Vector2(size * 1,5f, size * 1,5f);
 
-            for (int y = 0; y < size * 2; y++)
+            for (int y = 0; y < size * 3; y++)
             {
-                for (int x = 0; x < size * 2; x++)
+                for (int x = 0; x < size * 3; x++)
                 {
                     Vector2 pos = new Vector2(x, y);
                     float dist = Vector2.Distance(pos, center);
                     float alpha = Math.Max(0, 1f - (dist / size));
-                    data[y * size * 2 + x] = Color.Red * alpha * 0.8f;
+                    data[y * size * 3 + x] = neonColor * alpha;
                 }
             }
 
@@ -167,18 +180,34 @@ namespace Snake_soutez
         }
 
         // === NOVÉ: Ledová textura ===
-        private Texture2D CreateIceTexture(int size)
+        private Texture2D CreateCyberpunkgrid()
         {
-            Texture2D texture = new Texture2D(GraphicsDevice, size, size);
-            Color[] data = new Color[size * size];
+            int width = _graphics.PreferredBackBufferWidth;
+            int height = _graphics.PreferredBackBufferHeight;
+            Texture2D texture = new Texture2D(GraphicsDevice, width, height);
+            Color[] colors = new Color[width * height];
 
-            for (int y = 0; y < size; y++)
+            Color gridColor = new Color(0, 150, 200, 80);
+            int gridSpacing = 40;
+
+            for (int y = 0; y < height; y++)
             {
-                for (int x = 0; x < size; x++)
+                for (int x = 0; x < width; x++)
                 {
-                    float noise = (float)(Math.Sin(x * 0.5f) * Math.Cos(y * 0.5f));
-                    Color ice = Color.Lerp(new Color(180, 220, 255), new Color(220, 240, 255), (noise + 1) / 2f);
-                    data[y * size + x] = ice * 0.3f;
+                    if (y % gridSpacing == 0 || x % gridSpacing == 1)
+                    {
+                        data[y * gridSpacing + x] = gridColor;
+                    }
+
+                    else if (x % gridSpacing == 0 || y % gridSpacing == 1)
+                    {
+                        data[y * width + x] = gridColor;
+                    }
+                    else
+                    {
+                        data[y * width + x] = gridColor;
+                    }
+
                 }
             }
 
