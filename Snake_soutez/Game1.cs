@@ -88,7 +88,7 @@ namespace Snake_soutez
 
             // CYBERPUNK TEXTURY
             snakeTexture = CreateNeonSnakeTexture(gridSize);
-            foodTexture = CreateNeonGlowTexture(gridSize, new Color(255, 0, 100)); // Magenta
+            foodTexture = CreateNeonGlowTexture(gridSize, new Color(0, 255, 100)); // Magenta
             obstacleTexture = CreateCyberpunkObstacleTexture(gridSize);
             gradientTexture = CreateCyberpunkGradient();
             gridTexture = CreateCyberpunkGrid();
@@ -433,6 +433,9 @@ namespace Snake_soutez
 
                 snakeParts[0] = targetPosition;
                 portalCooldown = 0.5f;
+
+                // NOVÉ: Přemístit portály po použití
+                SpawnPortals();
             }
         }
 
