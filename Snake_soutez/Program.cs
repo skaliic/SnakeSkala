@@ -1,2 +1,13 @@
-﻿using var game = new Snake_soutez.Game1();
-game.Run();
+﻿namespace Snake_soutez
+{
+    public static class Program
+    {
+        static void Main()
+        {
+            using (var game = new Game1())
+            {
+                game.Run();
+            }
+        }
+    }
+}
