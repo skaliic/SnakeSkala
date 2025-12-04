@@ -422,7 +422,7 @@ namespace Snake_soutez
 
         public void TeleportSnake(Vector2 targetPosition)
         {
-            if (portalCooldown <= )
+            if (portalCooldown <= 0)
             {
                 // Teleportační částice
                 for (int i = 0; i < 30; i++)
