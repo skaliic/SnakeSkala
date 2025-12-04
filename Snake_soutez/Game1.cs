@@ -113,35 +113,24 @@ namespace Snake_soutez
         }
 
         // === CYBERPUNK: Neonový had s outline ===
+        // === CYBERPUNK: Neonový had s outline ===
         private Texture2D CreateNeonSnakeTexture(int size)
         {
             Texture2D texture = new Texture2D(GraphicsDevice, size, size);
             Color[] data = new Color[size * size];
 
-            Vector2 center = new Vector2(size / 2f, size / 2f);
-            float radius = size / 2f - 2;
+            Color cyanColor = new Color(0, 255, 255); // Cyan
+            Color outlineColor = new Color(100, 255, 255); // Světlejší cyan
 
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
                 {
-                    Vector2 pos = new Vector2(x, y);
-                    float dist = Vector2.Distance(pos, center);
-
-                    if (dist <= radius)
-                    {
-                        // Vnitřek - cyan
-                        data[y * size + x] = new Color(0, 255, 255); // Cyan
-                    }
-                    else if (dist <= radius + 2)
-                    {
-                        // Outline - jasně cyan
-                        data[y * size + x] = new Color(100, 255, 255);
-                    }
+                    // Neonový okraj (2 pixely od kraje)
+                    if (x < 2 || x >= size - 2 || y < 2 || y >= size - 2)
+                        data[y * size + x] = outlineColor;
                     else
-                    {
-                        data[y * size + x] = Color.Transparent;
-                    }
+                        data[y * size + x] = cyanColor;
                 }
             }
 
